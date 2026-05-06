@@ -318,6 +318,35 @@ The end-to-end SLO is meaningless without allocating it across hops. These are p
 
 **Per-pod throughput:** ~300 RPS for Python async (FastAPI/uvicorn) at 20 ms avg, accounting for GC, connection-pool contention, TLS overhead. **The single most important assumption — validate by load test on day one.**
 
+#### Validation plan (day-one load test)
+
+```bash
+# 1. Deploy a single pod with production-equivalent CPU/memory limits
+#    in staging, with Redis warmed and Postgres at production-equivalent
+#    rule count.
+kubectl scale deployment/discount-service --replicas=1 -n discount-staging
+
+# 2. Ramp k6 from 0 → 500 RPS over 5 min, hold for 5 min, ramp down.
+k6 run --vus 100 --stage 5m:500 --stage 5m:500 --stage 1m:0 load.js
+
+# 3. Pass criteria:
+#    - p99 latency stays < 120 ms during the hold (production target +
+#      20 ms safety margin)
+#    - error rate stays < 0.1%
+#    - CPU on the pod stays < 80% (matches HPA target + headroom)
+#    - GC pause p99 < 10 ms (visible in Datadog APM)
+```
+
+**Decision matrix from results:**
+
+| Sustained RPS @ pass criteria | Action |
+|---|---|
+| ≥ 300 | Assumption confirmed. No model change. |
+| 200–299 | Bump `maxReplicas` proportionally (e.g. 67 → 100 → 150) and pre-purchase larger Savings Plans. |
+| < 200 | Stop. Escalate. The capacity model is wrong; revisit pod sizing or rewrite hot paths. |
+
+The decision matrix matters more than the number itself — it's the protocol for what to do when the assumption misses.
+
 | Tier | Math | Result |
 |---|---|---|
 | Steady-state pods | 2,000 RPS ÷ 300 RPS/pod | **~7 pods** · run 10 for headroom · floor at 6 (AZ resilience) |
@@ -538,8 +567,8 @@ kubectl set env deployment/discount-service VOUCHER_DB_TARGET=primary -n discoun
 
 ## What I'd Do With Another Week
 
-1. Load test the async service to validate the 300 RPS/pod assumption — entire capacity model rests on it
-2. Detail the correctness shadow job (named in SLI-2 but not fully specified)
-3. Write the second runbook — voucher rejection (different Redis key patterns, different escalation)
-4. Specify the PgBouncer deployment topology and failover behavior
-5. Pre-scaling playbook for known sale events (cron pre-provisioning nodes 30 min ahead)
+1. **Actually run the day-one load test** (plan documented above) — protocol is defined; result is needed.
+2. **Detail the correctness shadow job** — named in SLI-2 but not fully specified (which fixtures, alert thresholds, who owns it).
+3. **Specify PgBouncer deployment topology and failover** — sidecar vs. dedicated deployment, what happens when PgBouncer itself dies.
+4. **Pre-scaling playbook for known sale events** — cron pre-provisioning nodes 30 min ahead, with rollback path if the sale traffic doesn't materialise.
+5. **Third runbook: cache-eviction cascade** — partially covered as failure mode #2, but not in runbook form.
