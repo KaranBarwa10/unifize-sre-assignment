@@ -1,5 +1,8 @@
 # Discount Service — SRE Design
 
+> 🌐 **Live rendered design:** https://karanbarwa10.github.io/unifize-sre-assignment/design.html
+> *(Hover any component in the diagram to see its role and design rationale. Light/dark mode toggle in top-right.)*
+
 A reliability, observability, and operations plan for a Python discount calculation service on the **synchronous checkout critical path** (every cart-pricing request goes through us — if we're slow, customers can't buy) of a fashion e-commerce platform.
 
 **Stack:** AWS · EKS · Aurora PostgreSQL · ElastiCache Redis · Datadog
