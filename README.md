@@ -142,16 +142,33 @@ PgBouncer is drawn with a double-line box and a `v1.5` label — it ships in the
 
 ---
 
-## Commit Hygiene
+## AI Critique Log — Draft vs. Final
 
-Per the assignment, the design was drafted with AI assistance and then critically refined. The git history reflects:
+The assignment specifically evaluates *"the delta between the AI's first draft and your final design."* Below is the explicit list of places where the AI draft was generic, cargo-culted, or internally inconsistent, and what was changed (with reasoning).
 
-1. **Initial AI-assisted draft** of the six-area design.
-2. **Critical review pass** — capacity math reconciled at 300 RPS/pod and max 100 replicas, latency budget added per hop, PgBouncer ambiguity resolved, idempotency / cardinality discipline / queueing & backpressure addressed.
-3. **README and rendered version** added for reviewer context.
-4. **Coverage extensions** — second runbook (voucher rejection), PgBouncer drawn into v1 diagram with `v1.5` annotation, concrete day-one load-test plan with pass criteria and decision matrix.
+| # | What the AI draft said | What was changed | Why |
+|---|------------------------|------------------|-----|
+| 1 | HPA target = **70% CPU** (the textbook number) | **60% CPU** | Python's GC pauses spike individual pods to 95%+ during collection; at 70% average, async event-loop queueing kicks in and p99 breaches. The 10% extra headroom is insurance, not waste. |
+| 2 | Availability SLO = **99.95%** (the AI default for "high reliability") | **99.9%** | Honest for single-region multi-AZ. Aurora failover alone consumes 15–30s of the budget; 99.95% would require multi-region active-active, out of v1 scope. Promising 99.95% on this design would be lying. |
+| 3 | Capacity math: **100 RPS/pod → 200 pods at peak**, but `maxReplicas = 60`. **Internally inconsistent** — peak demand exceeds the configured ceiling. | **300 RPS/pod, max 100 pods** | Reconciled with realistic Python async throughput. Now peak demand (~67 pods) sits comfortably under the ceiling with assumption-error margin. The number is also flagged explicitly as the day-one load-test priority. |
+| 4 | "**p99 < 150 ms**" stated as a single end-to-end target | **Per-hop latency budget** (network 20 / Redis 10 / DB 50 / app 20 / headroom 50 = 150 ms) | An end-to-end SLO is meaningless without allocating it across hops. Without a budget, every component thinks it has 150 ms and consumes the whole thing. |
+| 5 | Only **availability + latency** SLIs (the standard pair) | Added **correctness as a separate SLI** at **99.99%** — *higher than availability* | Wrong price > no price. Overcharging is a legal/trust issue; undercharging is silent revenue loss. Asymmetric cost means correctness must have a tighter bar. Most candidates miss this. |
+| 6 | PgBouncer **mentioned as mitigation in prose but absent from the architecture diagram** | **Drawn into the diagram with a `v1.5` annotation** (double-line border + label) | Architectural ambiguity. Deployment phasing made visually explicit so reviewers see "ships in the next iteration" rather than reading a footnote. |
+| 7 | Failure modes were **generic** ("DB slow", "Redis down") | Three **specific, named** failure modes: <br>(a) Sequential scan on `discount_rules` after a new bank offer with new `card_type` array values defeats the GIN index <br>(b) Redis `allkeys-lru` eviction at 20K RPS cascades 20K q/s onto a DB sized for 200–400 q/s <br>(c) Rule-priority bug applies brand+bank discounts multiplicatively for one combination — silent revenue loss | The rubric explicitly says *"the database is slow is not a failure mode."* Specific reproducible failure modes also give us specific mitigations. |
+| 8 | **No backpressure / admission control** under sustained overload | Three controls added: deadline propagation, bounded request queue per worker (max 50 in-flight, fail fast above), DB pool wait cap (30 ms) | At 20K RPS, queueing causes tail-latency collapse — system becomes uniformly broken instead of partially serving. Controlled rejection beats cascading timeout. |
+| 9 | **No idempotency discussion** despite checkout retrying on transient errors | Explicit invariants: pure functions, no `datetime.now()` except voucher expiry, idempotency key on `validate_discount_code`, no side effects in calculate path | Without these, a retry on a flaky network can charge a customer twice or double-decrement a single-use voucher. |
+| 10 | Suggested **high-cardinality metric labels** freely (e.g. `voucher_code`, `customer_id`) | Added **cardinality allowlist + forbidden list** | Each unique label value = a separate stored time-series. Voucher codes as a label would explode Datadog cost or OOM the Prometheus scrape target. They go in logs, never on metrics. |
+| 11 | **Standard CI/CD gates** (errors, latency) for all changes including discount logic | Three **discount-specific gates**: 50-cart fixture suite with exact expected prices, applied-amount distribution canary (>15% drift = auto-rollback), shadow mode for major logic changes | Pricing bugs are silent — error/latency gates can't catch "discount is now 0 for all bank cards." Needs a different defense. |
+| 12 | **No graceful-degradation policy** | Explicit fail-open strategy with named fallbacks, plus a **never-acceptable invariant** (`final_price > original_price` is a legal issue) | The central trade-off on a checkout-blocking service must be named, not avoided. |
 
-The delta between the AI draft and the final design is intentionally visible across the commits — each one names what was changed and why.
+### Coverage extensions (after the critical review pass)
+
+- **Second runbook** added (voucher code rejection) — different failure pattern from pool saturation: cache poisoning, read-replica lag, recent rule deploy. Different ranked causes, different mitigations.
+- **Concrete day-one load-test plan** with k6 protocol, pass criteria (p99 < 120 ms, error < 0.1%, CPU < 80%, GC pause < 10 ms), and a decision matrix mapping load-test results to capacity-model adjustments.
+- **PgBouncer drawn into the v1 diagram** with double-line border and `v1.5` label.
+
+### Commit history
+The git log reflects this progression — each commit names what was changed and why. Commit `91e5c55` in particular lists the critical-review refinements explicitly. See `git log` for the full sequence.
 
 ---
 
