@@ -157,7 +157,7 @@ The delta between the AI draft and the final design is intentionally visible acr
 
 ## Service Reference (from assignment)
 
-The discount service exposes the interface defined in [assignment_SRE.md](assignment_SRE.md#appendix-service-reference). No code changes — the design treats this interface as a fixed contract.
+The discount service exposes the interface from the assignment brief. No code changes — the design treats this interface as a fixed contract.
 
 Endpoints:
 - `calculate_cart_discounts(cart_items, customer, payment_info) → DiscountedPrice`
