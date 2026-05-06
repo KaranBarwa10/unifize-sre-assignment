@@ -34,13 +34,18 @@ Given the 3-hour budget, depth went into **observability**, **resilience**, and 
                      │ miss      │ miss
                      └─────┬─────┘
                            ▼
+                ╔══════════════════╗
+                ║    PgBouncer     ║   ← v1.5 (ships before
+                ║ (txn pooling)    ║      first peak sale)
+                ╚════════╤═════════╝
+                         ▼
                  ┌─────────────────┐
                  │ Aurora Postgres │
-                 │  discount_rules │
+                 │  primary + RR   │
                  └─────────────────┘
 ```
 
-**Note on PgBouncer:** Connection pooler (multiplexes many client-side DB connections through a small pool of server-side connections). Omitted from this diagram for readability but **mandatory before peak-sale readiness**. Ships in v1.5 — see Capacity section.
+**On PgBouncer (the boxed component):** Connection pooler in transaction-pooling mode — multiplexes many client-side DB connections through a small pool of server-side connections. Drawn here with a double-line box and the `v1.5` label to distinguish "ships in the next iteration" from "ships at launch." A v1 deployment without PgBouncer is acceptable while traffic stays at steady-state RPS; before the first peak-sale event (Black Friday or equivalent), this component is mandatory — see Capacity section for the connection-ceiling math.
 
 **Request flow:**
 1. Checkout calls `calculate_cart_discounts` synchronously.
