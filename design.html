@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Discount Service — SRE Design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root, [data-theme="light"] {
+    --bg: #fafbfc; --bg-card: #ffffff; --bg-elev: #ffffff;
+    --border: #e5e7eb; --border-soft: #eef0f3;
+    --text: #0f172a; --text-dim: #475569; --text-muted: #64748b;
+    --accent: #6366f1; --accent-2: #8b5cf6; --accent-3: #0891b2;
+    --green: #059669; --amber: #d97706; --red: #dc2626;
+    --code-bg: #0f172a; --code-text: #e2e8f0;
+    --aside-bg: rgba(255,255,255,0.78);
+    --grad-1: rgba(99,102,241,0.10); --grad-2: rgba(139,92,246,0.07); --grad-3: rgba(8,145,178,0.05);
+    --hero-from: #0f172a; --hero-to: #475569;
+    --shadow: 0 1px 3px rgba(15,23,42,0.04);
+    --shadow-lg: 0 10px 30px rgba(15,23,42,0.10);
+    --inline-code-bg: #f1f5f9; --inline-code-text: #be185d; --inline-code-border: #e2e8f0;
+    --table-row-hover: rgba(15,23,42,0.02);
+    --line: #cbd5e1; --line-active: #6366f1;
+    --tip-bg: #0f172a; --tip-text: #e2e8f0; --tip-border: #1e293b;
+    --pill-green-bg: rgba(5,150,105,0.10); --pill-green-fg: #047857; --pill-green-bd: rgba(5,150,105,0.30);
+    --pill-amber-bg: rgba(217,119,6,0.10); --pill-amber-fg: #b45309; --pill-amber-bd: rgba(217,119,6,0.30);
+    --pill-red-bg: rgba(220,38,38,0.10); --pill-red-fg: #b91c1c; --pill-red-bd: rgba(220,38,38,0.30);
+    --pill-blue-bg: rgba(99,102,241,0.10); --pill-blue-fg: #4338ca; --pill-blue-bd: rgba(99,102,241,0.30);
+    --card-accent-bg: linear-gradient(180deg, rgba(99,102,241,0.05), #ffffff);
+    --card-warn-bg: linear-gradient(180deg, rgba(217,119,6,0.05), #ffffff);
+    --card-danger-bg: linear-gradient(180deg, rgba(220,38,38,0.05), #ffffff);
+    --node-primary-bg: linear-gradient(180deg, rgba(99,102,241,0.10), rgba(99,102,241,0.03));
+    --node-primary-shadow: 0 4px 16px rgba(99,102,241,0.18);
+  }
+  [data-theme="dark"] {
+    --bg: #0a0e1a; --bg-card: #131a2b; --bg-elev: #111827;
+    --border: #1f2937; --border-soft: #1a2235;
+    --text: #e5e7eb; --text-dim: #9ca3af; --text-muted: #6b7280;
+    --accent: #818cf8; --accent-2: #a78bfa; --accent-3: #22d3ee;
+    --green: #10b981; --amber: #f59e0b; --red: #ef4444;
+    --code-bg: #0d1424; --code-text: #d1d5db;
+    --aside-bg: rgba(10,14,26,0.6);
+    --grad-1: rgba(99,102,241,0.18); --grad-2: rgba(139,92,246,0.12); --grad-3: rgba(6,182,212,0.08);
+    --hero-from: #ffffff; --hero-to: #c7c9d4;
+    --shadow: none; --shadow-lg: 0 10px 40px rgba(0,0,0,0.4);
+    --inline-code-bg: #0d1424; --inline-code-text: #e5e7eb; --inline-code-border: #1a2235;
+    --table-row-hover: rgba(255,255,255,0.02);
+    --line: #334155; --line-active: #818cf8;
+    --tip-bg: #1e293b; --tip-text: #f1f5f9; --tip-border: #334155;
+    --pill-green-bg: rgba(16,185,129,0.12); --pill-green-fg: #34d399; --pill-green-bd: rgba(16,185,129,0.30);
+    --pill-amber-bg: rgba(245,158,11,0.12); --pill-amber-fg: #fbbf24; --pill-amber-bd: rgba(245,158,11,0.30);
+    --pill-red-bg: rgba(239,68,68,0.12); --pill-red-fg: #f87171; --pill-red-bd: rgba(239,68,68,0.30);
+    --pill-blue-bg: rgba(99,102,241,0.12); --pill-blue-fg: #a5b4fc; --pill-blue-bd: rgba(99,102,241,0.30);
+    --card-accent-bg: linear-gradient(180deg, rgba(99,102,241,0.06), transparent);
+    --card-warn-bg: linear-gradient(180deg, rgba(245,158,11,0.06), transparent);
+    --card-danger-bg: linear-gradient(180deg, rgba(239,68,68,0.06), transparent);
+    --node-primary-bg: linear-gradient(180deg, rgba(99,102,241,0.15), rgba(99,102,241,0.05));
+    --node-primary-shadow: 0 0 24px rgba(99,102,241,0.15);
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg); color: var(--text);
+    line-height: 1.7; font-size: 15.5px;
+    -webkit-font-smoothing: antialiased;
+    transition: background 0.25s, color 0.25s;
+  }
+  body::before {
+    content: ''; position: fixed; inset: 0;
+    background:
+      radial-gradient(ellipse 800px 600px at 10% -10%, var(--grad-1), transparent 60%),
+      radial-gradient(ellipse 700px 500px at 100% 0%, var(--grad-2), transparent 60%),
+      radial-gradient(ellipse 600px 400px at 50% 100%, var(--grad-3), transparent 60%);
+    pointer-events: none; z-index: 0;
+  }
+  .layout { display: grid; grid-template-columns: 280px 1fr; max-width: 1400px; margin: 0 auto; position: relative; z-index: 1; }
+  aside {
+    position: sticky; top: 0; height: 100vh; overflow-y: auto;
+    padding: 32px 24px; border-right: 1px solid var(--border);
+    background: var(--aside-bg); backdrop-filter: blur(12px);
+  }
+  aside .brand { font-weight: 800; font-size: 14px; letter-spacing: 0.5px; text-transform: uppercase; background: linear-gradient(90deg, var(--accent), var(--accent-3)); -webkit-background-clip: text; background-clip: text; color: transparent; margin-bottom: 4px; }
+  aside .sub { font-size: 12px; color: var(--text-muted); margin-bottom: 24px; }
+  aside nav a { display: block; padding: 8px 12px; margin: 2px 0; font-size: 13.5px; color: var(--text-dim); text-decoration: none; border-radius: 6px; transition: all 0.15s; }
+  aside nav a:hover { color: var(--text); background: rgba(99,102,241,0.08); }
+  aside nav .num { display: inline-block; width: 22px; color: var(--accent); font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; }
+  main { padding: 56px 64px; max-width: 1000px; }
+  .theme-toggle {
+    position: fixed; top: 20px; right: 24px; z-index: 100;
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 14px; background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 999px; color: var(--text-dim); font-size: 13px; font-weight: 500;
+    cursor: pointer; box-shadow: var(--shadow); font-family: inherit; transition: all 0.2s;
+  }
+  .theme-toggle:hover { color: var(--text); border-color: var(--accent); }
+  [data-theme="light"] .moon { display: inline-flex; } [data-theme="light"] .sun { display: none; }
+  [data-theme="dark"] .moon { display: none; } [data-theme="dark"] .sun { display: inline-flex; }
+  .hero { margin-bottom: 56px; padding-bottom: 40px; border-bottom: 1px solid var(--border); }
+  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: var(--pill-green-bg); color: var(--pill-green-fg); font-size: 11.5px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; border-radius: 999px; border: 1px solid var(--pill-green-bd); margin-bottom: 16px; }
+  .badge::before { content: ''; width: 6px; height: 6px; background: var(--pill-green-fg); border-radius: 50%; box-shadow: 0 0 8px var(--pill-green-fg); }
+  h1 { font-size: 44px; font-weight: 800; letter-spacing: -1px; line-height: 1.15; margin: 0 0 16px; background: linear-gradient(180deg, var(--hero-from), var(--hero-to)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .lede { font-size: 17px; color: var(--text-dim); max-width: 720px; margin: 0 0 28px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 24px; font-size: 13px; color: var(--text-muted); }
+  .meta b { color: var(--text); font-weight: 600; }
+  section { margin: 64px 0; scroll-margin-top: 24px; }
+  h2 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; margin: 0 0 12px; display: flex; align-items: baseline; gap: 16px; }
+  h2 .n { font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 600; color: var(--accent); background: rgba(99,102,241,0.10); padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(99,102,241,0.25); }
+  h2 + .lede-section { color: var(--text-dim); margin: 0 0 20px; max-width: 760px; font-size: 15px; }
+  h3 { font-size: 18px; font-weight: 600; margin: 32px 0 12px; }
+  h4 { font-size: 13px; font-weight: 600; margin: 20px 0 8px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+  p { margin: 0 0 14px; color: var(--text-dim); }
+  p strong, li strong { color: var(--text); font-weight: 600; }
+  ul, ol { padding-left: 20px; color: var(--text-dim); }
+  li { margin-bottom: 6px; }
+  a { color: var(--accent-3); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 22px; margin: 18px 0; box-shadow: var(--shadow); }
+  .card.accent { border-color: rgba(99,102,241,0.35); background: var(--card-accent-bg); }
+  .card.warn { border-color: rgba(217,119,6,0.35); background: var(--card-warn-bg); }
+  .card.danger { border-color: rgba(220,38,38,0.35); background: var(--card-danger-bg); }
+  .why-box { background: var(--bg-card); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 10px; padding: 16px 20px; margin: 16px 0; box-shadow: var(--shadow); }
+  .why-box .label { display: inline-block; font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700; color: var(--accent); background: rgba(99,102,241,0.12); padding: 2px 8px; border-radius: 4px; letter-spacing: 1px; margin-bottom: 8px; }
+  .why-box.green { border-left-color: var(--green); }
+  .why-box.green .label { color: var(--pill-green-fg); background: var(--pill-green-bg); }
+  .why-box.amber { border-left-color: var(--amber); }
+  .why-box.amber .label { color: var(--pill-amber-fg); background: var(--pill-amber-bg); }
+  .why-box.red { border-left-color: var(--red); }
+  .why-box.red .label { color: var(--pill-red-fg); background: var(--pill-red-bg); }
+  .why-box .q { font-weight: 600; color: var(--text); margin-bottom: 6px; font-size: 15px; }
+  pre, code { font-family: 'JetBrains Mono', monospace; }
+  code { background: var(--inline-code-bg); padding: 2px 6px; border-radius: 4px; font-size: 13px; color: var(--inline-code-text); border: 1px solid var(--inline-code-border); }
+  pre { background: var(--code-bg); border: 1px solid #1e293b; border-radius: 10px; padding: 18px 20px; overflow-x: auto; font-size: 13px; line-height: 1.65; margin: 16px 0; }
+  pre code { background: none; padding: 0; border: none; color: #d1d5db; }
+  .k { color: #c084fc; } .s { color: #86efac; } .nm { color: #fbbf24; } .c { color: #94a3b8; font-style: italic; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px; }
+  th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+  th { background: rgba(99,102,241,0.06); font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); }
+  td { color: var(--text-dim); }
+  td strong { color: var(--text); }
+  tr:hover td { background: var(--table-row-hover); }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin: 24px 0; }
+  .stat { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; box-shadow: var(--shadow); }
+  .stat .label { font-size: 11.5px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+  .stat .value { font-size: 26px; font-weight: 700; font-family: 'JetBrains Mono', monospace; background: linear-gradient(90deg, var(--accent), var(--accent-3)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .stat .hint { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+  .pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 600; margin-right: 6px; }
+  .pill.green { background: var(--pill-green-bg); color: var(--pill-green-fg); border: 1px solid var(--pill-green-bd); }
+  .pill.amber { background: var(--pill-amber-bg); color: var(--pill-amber-fg); border: 1px solid var(--pill-amber-bd); }
+  .pill.red { background: var(--pill-red-bg); color: var(--pill-red-fg); border: 1px solid var(--pill-red-bd); }
+  .pill.blue { background: var(--pill-blue-bg); color: var(--pill-blue-fg); border: 1px solid var(--pill-blue-bd); }
+  .fmode { border-left: 3px solid var(--red); padding-left: 20px; margin: 28px 0; }
+  .fmode h4 { color: var(--text); text-transform: none; letter-spacing: 0; font-size: 16px; }
+  .runbook { counter-reset: step; }
+  .step { counter-increment: step; position: relative; padding-left: 56px; margin: 28px 0; }
+  .step::before { content: counter(step); position: absolute; left: 0; top: 0; width: 36px; height: 36px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-family: 'JetBrains Mono', monospace; box-shadow: 0 4px 12px rgba(99,102,241,0.3); }
+
+  /* Diagram */
+  .canvas-wrap { margin: 24px 0 16px; overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 16px; }
+  .canvas { position: relative; padding: 50px 30px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow); width: 1180px; height: 880px; }
+  .lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+  .lines path { fill: none; stroke: var(--line); stroke-width: 2; stroke-dasharray: 4 4; }
+  .lines path.solid { stroke-dasharray: none; }
+  .node { position: absolute; z-index: 2; background: var(--bg-elev); border: 1.5px solid var(--border); border-radius: 12px; padding: 14px 18px; text-align: center; cursor: help; transition: all 0.2s; box-shadow: var(--shadow); user-select: none; }
+  .node:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: var(--shadow-lg); z-index: 5; }
+  .node .title { font-weight: 600; font-size: 13.5px; color: var(--text); display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .node .sub { font-size: 11px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; margin-top: 4px; }
+  .ndot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .node.client { border-color: rgba(8,145,178,0.4); } .node.client .ndot { background: var(--accent-3); }
+  .node.service { border-color: var(--accent); background: var(--node-primary-bg); box-shadow: var(--node-primary-shadow); padding: 18px 22px; }
+  .node.service .ndot { background: var(--accent); }
+  .node.service .title { font-size: 14.5px; }
+  .node.endpoint { border-color: rgba(139,92,246,0.4); padding: 10px 14px; }
+  .node.endpoint .ndot { background: var(--accent-2); }
+  .node.endpoint .title { font-size: 12.5px; }
+  .node.cache { border-color: rgba(220,38,38,0.4); } .node.cache .ndot { background: var(--red); }
+  .node.pooler { border-color: rgba(217,119,6,0.4); } .node.pooler .ndot { background: var(--amber); }
+  .node.db { border-color: rgba(8,145,178,0.4); } .node.db .ndot { background: var(--accent-3); }
+  .node.platform { border-color: rgba(5,150,105,0.4); } .node.platform .ndot { background: var(--green); }
+  .node.v15::after { content: 'v1.5'; position: absolute; top: -8px; right: -8px; background: var(--amber); color: white; font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 4px; letter-spacing: 0.5px; }
+  .tip { position: absolute; z-index: 10; bottom: calc(100% + 12px); left: 50%; transform: translateX(-50%) translateY(4px); width: 320px; background: var(--tip-bg); color: var(--tip-text); border: 1px solid var(--tip-border); border-radius: 10px; padding: 14px 16px; font-size: 12.5px; line-height: 1.55; text-align: left; opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; box-shadow: var(--shadow-lg); }
+  .tip::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 6px solid transparent; border-top-color: var(--tip-bg); }
+  .tip strong { color: white; font-weight: 600; }
+  .tip .role { color: var(--accent-3); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; display: block; }
+  .tip ul { padding-left: 16px; margin: 8px 0 0; color: var(--tip-text); }
+  .tip ul li { margin-bottom: 4px; }
+  .tip .why { display: inline-block; font-family: 'JetBrains Mono', monospace; font-size: 9.5px; font-weight: 700; color: var(--accent); background: rgba(99,102,241,0.15); padding: 2px 6px; border-radius: 3px; letter-spacing: 1px; margin-bottom: 8px; }
+  .node:hover .tip { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+  .tip.below { bottom: auto; top: calc(100% + 12px); }
+  .tip.below::after { top: auto; bottom: 100%; border-top-color: transparent; border-bottom-color: var(--tip-bg); }
+  .edge-label { position: absolute; z-index: 3; background: var(--bg-card); border: 1px solid var(--border); color: var(--text-muted); font-size: 10.5px; font-family: 'JetBrains Mono', monospace; padding: 2px 8px; border-radius: 4px; pointer-events: none; white-space: nowrap; }
+  .edge-label.warm { color: var(--green); border-color: rgba(5,150,105,0.4); }
+  .edge-label.cold { color: var(--red); border-color: rgba(220,38,38,0.4); }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 16px; padding: 14px 18px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow); }
+  .legend-item { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-dim); }
+  .ldot { width: 10px; height: 10px; border-radius: 50%; }
+  .hover-hint { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; margin-bottom: 16px; background: var(--bg-card); border: 1px dashed var(--border); border-radius: 999px; font-size: 12.5px; color: var(--text-muted); }
+  .hover-hint::before { content: ''; width: 6px; height: 6px; background: var(--accent); border-radius: 50%; box-shadow: 0 0 8px var(--accent); }
+  footer { margin-top: 80px; padding: 32px 0; border-top: 1px solid var(--border); text-align: center; color: var(--text-muted); font-size: 13px; }
+  @media (max-width: 980px) {
+    .layout { grid-template-columns: 1fr; }
+    aside { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+    main { padding: 32px 24px; }
+    h1 { font-size: 32px; }
+  }
+</style>
+<script>
+  (function () {
+    var saved = localStorage.getItem('theme');
+    var theme = saved || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', theme);
+  })();
+</script>
+</head>
+<body>
+<button class="theme-toggle" onclick="(function(){var c=document.documentElement.getAttribute('data-theme');var n=c==='dark'?'light':'dark';document.documentElement.setAttribute('data-theme',n);localStorage.setItem('theme',n);})()">
+  <span class="moon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></span>
+  <span class="sun"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg></span>
+  <span>Theme</span>
+</button>
+
+<div class="layout">
+  <aside>
+    <div class="brand">SRE Design</div>
+    <div class="sub">Discount Service · v1</div>
+    <nav>
+      <a href="#overview"><span class="num">00</span>Architecture</a>
+      <a href="#observability"><span class="num">01</span>Observability</a>
+      <a href="#slo"><span class="num">02</span>SLI / SLO &amp; Error Budget</a>
+      <a href="#deploy"><span class="num">03</span>Deployment &amp; Resilience</a>
+      <a href="#cicd"><span class="num">04</span>CI / CD &amp; Change Safety</a>
+      <a href="#capacity"><span class="num">05</span>Capacity &amp; Cost</a>
+      <a href="#runbook"><span class="num">06</span>Runbook</a>
+      <a href="#tradeoffs"><span class="num">07</span>Trade-offs</a>
+    </nav>
+  </aside>
+
+  <main>
+    <div class="hero">
+      <span class="badge">Production Design · 2026-05-06</span>
+      <h1>Discount Service<br/>SRE Design</h1>
+      <p class="lede">A plan for keeping a Python discount service fast and dependable while it sits on the checkout path. Hover any box in the diagram to see <strong>why each piece is there</strong>.</p>
+      <div class="meta">
+        <span><b>Stack</b> · AWS · Aurora · Redis · Datadog</span>
+        <span><b>Region</b> · One region, multiple zones</span>
+        <span><b>Author</b> · Karan Barwa</span>
+      </div>
+    </div>
+
+    <section id="overview">
+      <h2><span class="n">00</span>Architecture &amp; Component Map</h2>
+      <p class="lede-section">A <strong>synchronous, stateless service</strong> (each request is independent — no session memory) on the <strong>checkout critical path</strong> (every cart-pricing request goes through us). Target: p99 &lt; 150 ms. If we're slow or down, customers can't buy — that's the rule the rest of the design follows.</p>
+      <div class="hover-hint">Hover any box to see what it does and why · scroll sideways on small screens</div>
+
+      <div class="canvas-wrap">
+      <div class="canvas">
+        <svg class="lines" viewBox="0 0 1180 880" preserveAspectRatio="none">
+          <path class="solid" d="M 590 100 L 590 200" />
+          <path class="solid" d="M 590 290 L 460 350" />
+          <path class="solid" d="M 590 290 L 720 350" />
+          <path class="solid" d="M 460 410 L 220 480" />
+          <path class="solid" d="M 720 410 L 960 480" />
+          <path d="M 220 540 C 220 620, 400 620, 480 660" />
+          <path d="M 960 540 C 960 620, 780 620, 700 660" />
+          <path class="solid" d="M 590 720 L 590 790" />
+          <path d="M 690 250 L 1040 250" />
+          <path d="M 490 250 L 140 250" />
+          <path d="M 590 200 L 1040 130" />
+        </svg>
+
+        <div class="node client" style="top: 30px; left: 50%; transform: translateX(-50%); width: 220px;">
+          <div class="title"><span class="ndot"></span>Checkout Service</div>
+          <div class="sub">the app that calls us</div>
+          <div class="tip below">
+            <span class="why">WHY</span>
+            <span class="role">Upstream Caller</span>
+            Calls discount-service synchronously on every cart-pricing request. <strong>Checkout-blocking dependency</strong> — if we're slow or down, customers can't buy.
+            <ul>
+              <li><strong>Deadline propagation</strong> (passes a "how long you have" header) — we reject early if we can't meet it</li>
+              <li>Latency &gt; 150 ms = effectively unavailable (upstream timeout fires)</li>
+              <li>Retries on transient failures → drives our <strong>idempotency</strong> requirement (same input, same answer, every time)</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="node service" style="top: 200px; left: 50%; transform: translateX(-50%); width: 280px;">
+          <div class="title"><span class="ndot"></span>discount-service</div>
+          <div class="sub">Python · 6 to 100 copies running</div>
+          <div class="tip below">
+            <span class="why">WHY</span>
+            <span class="role">Core Service</span>
+            FastAPI/uvicorn async service. <strong>Stateless</strong> (no session memory between requests), so the HPA can add or remove pods freely.
+            <ul>
+              <li><strong>minReplicas = 6</strong> · 3 AZ × 2 pods/AZ — survives a full AZ failure</li>
+              <li><strong>maxReplicas = 100</strong> · ~1.5× peak demand of ~67 pods, headroom for assumption-error</li>
+              <li><strong>HPA at 60% CPU</strong> — Python GC (garbage collection — periodic memory cleanup) pauses spike individual pods to 95%+; 60% leaves headroom before request queueing kicks in</li>
+              <li><strong>podAntiAffinity</strong> (no two pods on same node) — eliminates shared-fate failures</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="node endpoint" style="top: 350px; left: 360px; width: 200px;">
+          <div class="title"><span class="ndot"></span>/calculate</div>
+          <div class="sub">price the cart</div>
+          <div class="tip">
+            <span class="why">WHY</span>
+            <span class="role">Hot Path Endpoint</span>
+            The 95% case — every cart load hits this. Pure read, naturally <strong>idempotent</strong> (same input always returns the same answer, no matter how many times you call it).
+            <ul>
+              <li><strong>No side effects</strong> — safe to retry without idempotency keys</li>
+              <li><strong>Determinism enforced</strong> — no <code style="color:#fbbf24;">datetime.now()</code> inside calculation, except for explicit voucher expiry checks</li>
+              <li>Cache hit (~85%): ~12 ms. Miss path: 50 ms DB budget</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="node endpoint" style="top: 350px; left: 620px; width: 200px;">
+          <div class="title"><span class="ndot"></span>/validate_code</div>
+          <div class="sub">check a coupon</div>
+          <div class="tip">
+            <span class="why">WHY</span>
+            <span class="role">Voucher Path</span>
+            Different from /calculate — vouchers can be <strong>revoked mid-session</strong>, single-use codes have state, fraud checks have side effects.
+            <ul>
+              <li><strong>30s cache TTL</strong> (time-to-live — how long a cached entry stays valid) vs. 5 min for rules — bounds the revocation window</li>
+              <li><strong>Idempotency key required</strong> — retried request must not double-decrement single-use redemption counters</li>
+              <li>Voucher codes <strong>SHA-256 hashed</strong> (one-way scrambled) in logs — log access ≠ replay surface</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="node cache" style="top: 480px; left: 120px; width: 200px;">
+          <div class="title"><span class="ndot"></span>Redis (rules)</div>
+          <div class="sub">held for 5 minutes</div>
+          <div class="tip">
+            <span class="why">WHY</span>
+            <span class="role">Primary Cache</span>
+            Without this layer, 20K RPS peak isn't serveable — Postgres alone can't handle it. The cache is what makes peak survivable.
+            <ul>
+              <li><strong>Cache key:</strong> <code style="color:#fbbf24;">brand+category+bank</code> — caches at rule-set level (shared across carts), not per-cart</li>
+              <li><strong>volatile-lru eviction</strong> (only items with a TTL get dropped under memory pressure), not <code style="color:#fbbf24;">allkeys-lru</code></li>
+              <li><strong>Hot rule keys pinned without TTL</strong> — bounds the eviction blast radius (limits how much breaks if eviction kicks in)</li>
+              <li>Hit ratio &gt; 85% steady; drop below 80% leads p99 latency by 5–10 min</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="node cache" style="top: 480px; left: 860px; width: 200px;">
+          <div class="title"><span class="ndot"></span>Redis (vouchers)</div>
+          <div class="sub">held for 30 seconds</div>
+          <div class="tip">
+            <span class="why">WHY</span>
+            <span class="role">Voucher Cache</span>
+            <strong>Short TTL on purpose.</strong> Codes can be revoked (fraud, expiry, single-use redemption). A 5-min window where a revoked code still validates is a real abuse surface.
+            <ul>
+              <li>30s caps the abuse window while still cutting most DB load on hot codes</li>
+              <li>Separate keyspace from rules — different eviction behavior, different failure mode</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="node pooler v15" style="top: 660px; left: 480px; width: 220px;">
+          <div class="title"><span class="ndot"></span>PgBouncer</div>
+          <div class="sub">shares database connections</div>
+          <div class="tip">
+            <span class="why">WHY</span>
+            <span class="role">Connection Multiplexer</span>
+            <strong>Mitigates the first peak bottleneck.</strong> 100 pods × 15 connections = 1,500 — close to Aurora's ~1,700 <code style="color:#fbbf24;">max_connections</code> ceiling. PgBouncer gives us headroom.
+            <ul>
+              <li><strong>Transaction-pooling mode</strong> — multiplexes per transaction (reuses connection between requests, not for the whole session)</li>
+              <li>~200 server-side connections, multiplexes thousands of client-side connections through them</li>
+              <li><strong>v1.5 hardening</strong> — omitted from simplified diagram for readability; mandatory before first peak-sale event</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="node db" style="top: 790px; left: 50%; transform: translateX(-50%); width: 240px;">
+          <div class="title"><span class="ndot"></span>Aurora PostgreSQL</div>
+          <div class="sub">main + read-only copy</div>
+          <div class="tip">
+            <span class="why">WHY</span>
+            <span class="role">Source of Truth</span>
+            Aurora over vanilla RDS — <strong>failover 15–30s vs. 60–120s</strong> (failover = automatic switch to a healthy replica when the primary dies). On checkout, that gap is material.
+            <ul>
+              <li><strong>Read replica</strong> (read-only copy that stays in sync) at peak — splits 3K q/s rule lookups across two endpoints</li>
+              <li>Dataset tiny (~5 MB) — IOPS is never the bottleneck; <strong>connection count is</strong></li>
+              <li>Failure mode #1: <strong>sequential scan</strong> (DB reads every row instead of using an index) on a new bank-offer column. CI runs <code style="color:#fbbf24;">EXPLAIN ANALYZE</code> on every rule migration to catch it</li>
+              <li>All migrations <strong>backward-compatible with N-1 code</strong> (works with both old and new app versions) — keeps rollback &lt; 5 min</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="node platform" style="top: 220px; right: 30px; width: 180px;">
+          <div class="title"><span class="ndot"></span>Datadog</div>
+          <div class="sub">logs, metrics, alerts</div>
+          <div class="tip">
+            <span class="why">WHY</span>
+            <span class="role">Observability</span>
+            Unified UI for logs, metrics, and distributed traces. At 3 AM, jumping between three tools to correlate is friction we don't need.
+            <ul>
+              <li><strong>RED metrics</strong> (Rate, Errors, Duration) + <strong>USE</strong> (Utilization, Saturation, Errors)</li>
+              <li><code style="color:#fbbf24;">discount_applied_amount_cents</code> histogram — catches silent miscalculation bugs latency metrics never will</li>
+              <li><strong>Cardinality discipline</strong> — number of unique label values stays bounded; <code style="color:#fbbf24;">voucher_code</code> goes in logs only, never as a metric label</li>
+              <li>Trade-off: vendor cost vs. unified UI — chosen explicitly</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="node platform" style="top: 220px; left: 30px; width: 180px;">
+          <div class="title"><span class="ndot"></span>Secrets Manager</div>
+          <div class="sub">stores passwords safely</div>
+          <div class="tip">
+            <span class="why">WHY</span>
+            <span class="role">Secrets &amp; Supply Chain</span>
+            DB credentials and Redis auth tokens injected at pod startup via the <strong>Secrets Store CSI driver</strong> (Kubernetes plugin that mounts secrets from cloud secret managers as files). Never baked into images.
+            <ul>
+              <li>No secrets in Docker build args, env files, or git history</li>
+              <li><code style="color:#fbbf24;">git-secrets</code> pre-commit hook + CI scan block accidental check-ins</li>
+              <li><strong>Image signing</strong> via AWS Signer; OPA admission policy (cluster gatekeeper rule) enforces signed images only</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="node platform" style="top: 80px; right: 60px; width: 160px;">
+          <div class="title"><span class="ndot"></span>Auto-scaler</div>
+          <div class="sub">adds pods when busy</div>
+          <div class="tip below">
+            <span class="why">WHY</span>
+            <span class="role">Elasticity</span>
+            <strong>HPA</strong> (Horizontal Pod Autoscaler — adds/removes pod replicas based on CPU) + <strong>Cluster Autoscaler</strong> (adds/removes whole VMs). <strong>Asymmetric stabilization</strong> (different speeds for up vs. down) on purpose.
+            <ul>
+              <li><strong>scaleUp stab. 60s</strong> — sale traffic ramps in seconds; slow scale-up = dropped requests</li>
+              <li><strong>scaleDown stab. 300s</strong> — prevents post-spike thrash (rapid up-down oscillation)</li>
+              <li>Pre-scale 30 min before known sale events; node provisioning takes 2–3 min</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="edge-label" style="top: 145px; left: 50%; transform: translateX(-50%);">request · under 150ms</div>
+        <div class="edge-label warm" style="top: 440px; left: 230px;">found · 85%</div>
+        <div class="edge-label warm" style="top: 440px; right: 230px;">found · 85%</div>
+        <div class="edge-label cold" style="top: 600px; left: 320px;">not found · 15%</div>
+        <div class="edge-label cold" style="top: 600px; right: 320px;">not found · 15%</div>
+        <div class="edge-label" style="top: 750px; left: 50%; transform: translateX(-50%);">database lookup</div>
+      </div>
+      </div>
+
+      <div class="legend">
+        <div class="legend-item"><span class="ldot" style="background: var(--accent-3);"></span>Caller / storage</div>
+        <div class="legend-item"><span class="ldot" style="background: var(--accent);"></span>Main service</div>
+        <div class="legend-item"><span class="ldot" style="background: var(--accent-2);"></span>Endpoints</div>
+        <div class="legend-item"><span class="ldot" style="background: var(--red);"></span>Cache</div>
+        <div class="legend-item"><span class="ldot" style="background: var(--amber);"></span>Coming in v1.5</div>
+        <div class="legend-item"><span class="ldot" style="background: var(--green);"></span>Supporting tools</div>
+        <div class="legend-item" style="margin-left: auto;"><span style="display: inline-block; width: 24px; border-top: 2px solid var(--line-active);"></span> normal path</div>
+        <div class="legend-item"><span style="display: inline-block; width: 24px; border-top: 2px dashed var(--line);"></span> backup path</div>
+      </div>
+
+      <div class="stats">
+        <div class="stat"><div class="label">Steady-state</div><div class="value">2K</div><div class="hint">requests / sec</div></div>
+        <div class="stat"><div class="label">Peak (sale)</div><div class="value">20K</div><div class="hint">requests / sec</div></div>
+        <div class="stat"><div class="label">p99 budget</div><div class="value">150ms</div><div class="hint">end-to-end</div></div>
+        <div class="stat"><div class="label">Uptime goal</div><div class="value">99.9%</div><div class="hint">28-day window</div></div>
+      </div>
+
+      <div class="card accent">
+        <h4 style="margin-top:0;">What we focused on</h4>
+        <p style="margin-bottom:0;">With 3 hours, we went deepest on <strong>watching the system</strong>, <strong>surviving failures</strong>, and the <strong>3 AM runbook</strong> — the things that matter on day one. Capacity math is rough but shown. CI/CD is sketched, not exhaustive.</p>
+      </div>
+    </section>
+
+    <section id="observability">
+      <h2><span class="n">01</span>Observability</h2>
+      <p class="lede-section">Three pillars: <strong>logs</strong> (what happened to one request, written line-by-line), <strong>metrics</strong> (numerical trends over many requests, aggregated), and <strong>distributed traces</strong> (the path one request took across services, with timing per hop). All three feed Datadog so the on-call has one place to look.</p>
+
+      <h3>Structured Logging (one JSON line per request)</h3>
+      <p>Each request emits one machine-parseable line with: <code>trace_id</code> (correlates the whole request across services), <code>request_id</code>, <code>duration_ms</code>, <code>cache_hit</code>, <code>discount_types_evaluated</code>, <code>customer_segment</code>, and error fields when applicable.</p>
+
+      <h4>Cache hit, success</h4>
+<pre><code>{
+  <span class="s">"level"</span>: <span class="s">"INFO"</span>,
+  <span class="s">"event"</span>: <span class="s">"calculate_cart_discounts.success"</span>,
+  <span class="s">"trace_id"</span>: <span class="s">"4bf92f3577b34da6a3ce929d0e0e4736"</span>,
+  <span class="s">"duration_ms"</span>: <span class="nm">12</span>,
+  <span class="s">"cache_hit"</span>: <span class="k">true</span>,
+  <span class="s">"discount_types_evaluated"</span>: [<span class="s">"brand"</span>, <span class="s">"category"</span>],
+  <span class="s">"customer_segment"</span>: <span class="s">"loyalty_gold"</span>,
+  <span class="s">"original_price_cents"</span>: <span class="nm">8500</span>,
+  <span class="s">"final_price_cents"</span>: <span class="nm">6800</span>
+}</code></pre>
+
+      <h4>Database is slow</h4>
+<pre><code>{
+  <span class="s">"level"</span>: <span class="s">"WARN"</span>,
+  <span class="s">"event"</span>: <span class="s">"calculate_cart_discounts.slow"</span>,
+  <span class="s">"duration_ms"</span>: <span class="nm">134</span>,
+  <span class="s">"cache_hit"</span>: <span class="k">false</span>,
+  <span class="s">"db_query_ms"</span>: <span class="nm">121</span>,
+  <span class="s">"warning"</span>: <span class="s">"db_latency_approaching_slo_budget"</span>
+}</code></pre>
+
+      <p><strong>What we never log:</strong> raw voucher codes (we hash them), full customer details, full cart contents.</p>
+
+      <h3>Metrics — RED + USE + Business</h3>
+      <p><strong>RED</strong> (Rate, Errors, Duration — request-level health) and <strong>USE</strong> (Utilization, Saturation, Errors — resource-level health) are the standard SRE base. We add business-correctness metrics on top.</p>
+      <table>
+        <thead><tr><th>Metric</th><th>Type</th><th>Why we want it</th></tr></thead>
+        <tbody>
+          <tr><td><code>discount_request_total</code></td><td><span class="pill blue">Counter</span></td><td>RED: rate, by endpoint and outcome</td></tr>
+          <tr><td><code>discount_request_duration_seconds</code></td><td><span class="pill blue">Histogram</span></td><td>p99 latency SLO (target percentile) is computed from this</td></tr>
+          <tr><td><code>discount_cache_hit_ratio</code></td><td><span class="pill blue">Gauge</span></td><td>Leading indicator — drops precede latency by 5–10 min</td></tr>
+          <tr><td><code>discount_db_pool_utilization</code></td><td><span class="pill amber">Gauge</span></td><td>USE saturation — first peak bottleneck</td></tr>
+          <tr><td><code>discount_applied_amount_cents</code></td><td><span class="pill green">Histogram</span></td><td><strong>Business correctness</strong> — catches silent miscalculation regressions</td></tr>
+          <tr><td><code>discount_zero_applied_total</code></td><td><span class="pill green">Counter</span></td><td>Spike → voucher system or rule misconfiguration</td></tr>
+        </tbody>
+      </table>
+
+      <div class="why-box green">
+        <span class="label">WHY</span>
+        <div class="q">Why <code>discount_applied_amount_cents</code> is the most important metric here</div>
+        <p style="margin-bottom:0;">If a code change accidentally zeroes out all bank discounts, error rate is fine and latency is fine — but every customer is paying full price. Watching the average discount given catches this in minutes. Without it, you find out from customer complaints hours later.</p>
+      </div>
+
+      <div class="why-box amber">
+        <span class="label">CARDINALITY</span>
+        <div class="q">High-cardinality labels are forbidden on metrics</div>
+        <p style="margin-bottom:0;"><strong>Cardinality</strong> = number of unique label-value combinations. Each unique value becomes a separate stored time-series. <code>voucher_code</code>, <code>customer_id</code>, <code>request_id</code> — anything with millions of unique values — would explode the cost (per-series billing in Datadog) or OOM the scrape target (in Prometheus). They live in logs and traces only.</p>
+      </div>
+
+      <h3>Distributed Tracing (OpenTelemetry → Datadog APM)</h3>
+      <p>A <strong>trace</strong> is the path one request took, broken into <strong>spans</strong> (each unit of work — one Redis call, one DB query). Spans are nested to show the call tree.</p>
+<pre><code>[HTTP: calculate_cart_discounts]            <span class="c"># total span</span>
+  ├─ [redis.get rules_cache_lookup]         key=brand:zara|cat:dresses|bank:hdfc
+  ├─ [postgres.query fetch_discount_rules]  <span class="c"># only on miss</span>
+  │     db.rows_returned=12
+  ├─ [redis.set rules_cache_populate]       ttl=300s
+  └─ [app: apply_discounts]
+        discount.types_evaluated=["brand","bank"]
+        discount.applied_count=2</code></pre>
+
+      <h3>Dashboard</h3>
+      <div class="card">
+        <p style="margin-bottom: 8px;"><strong>Top row</strong> (eye scans first) · requests/sec · p99 latency · error rate · cache hit ratio</p>
+        <p style="margin-bottom: 8px;"><strong>Second row</strong> (where it hurts) · DB query speed · DB connection use · Redis speed</p>
+        <p style="margin-bottom: 0;"><strong>Third row</strong> (correctness) · average discount given · zero-discount spikes · errors by type</p>
+      </div>
+    </section>
+
+    <section id="slo">
+      <h2><span class="n">02</span>SLI / SLO &amp; Error Budget</h2>
+      <p class="lede-section">An <strong>SLI</strong> (Service Level Indicator) is a precisely-defined measurement (e.g. "fraction of requests under 150 ms"). An <strong>SLO</strong> (Service Level Objective) is the target for that SLI (e.g. "99.9% over 28 days"). The <strong>error budget</strong> is the allowed shortfall — when we burn through it, we stop shipping features and fix what's wrong.</p>
+
+      <h3>SLI Definitions</h3>
+      <div class="card">
+        <h4 style="margin-top:0;">SLI-1 · Availability</h4>
+        <p style="margin-bottom:0;">Fraction of requests returning HTTP 2xx <em>AND</em> finishing within 150 ms, over a rolling 28-day window. <strong>Combined definition:</strong> a 200 ms response is functionally the same as a 5xx error — checkout has already timed out.</p>
+      </div>
+      <div class="card">
+        <h4 style="margin-top:0;">SLI-2 · Correctness</h4>
+        <p style="margin-bottom:0;">Fraction of calculations where <code>final_price ≤ original_price</code> AND <code>applied_discounts</code> is non-empty when at least one rule matched. Validated by a <strong>shadow comparison job</strong> (runs alongside production traffic, checks expected outputs) against fixtures every 5 minutes.</p>
+      </div>
+      <div class="card">
+        <h4 style="margin-top:0;">SLI-3 · Cache hit ratio (leading indicator, not SLO)</h4>
+        <p style="margin-bottom:0;">5-min rolling cache hit ratio. Tracked but not an SLO target — drops here predict latency SLO breach by 5–10 min.</p>
+      </div>
+
+      <h3>SLO Targets</h3>
+      <table>
+        <thead><tr><th>SLO</th><th>Target</th><th>Window</th><th>Why this number</th></tr></thead>
+        <tbody>
+          <tr><td>Availability</td><td><strong>99.9%</strong></td><td>28 days</td><td>Error budget = 43.8 min/month. Honest for single-region multi-AZ; 99.95% requires multi-region active-active.</td></tr>
+          <tr><td>Latency</td><td><strong>p99 &lt; 150 ms</strong></td><td>5 min</td><td>Spec requirement. Owned despite Python GC pauses making it costly.</td></tr>
+          <tr><td>Correctness</td><td><strong>99.99%</strong></td><td>7 days</td><td>Tighter than availability: wrong price &gt; no price.</td></tr>
+        </tbody>
+      </table>
+
+      <div class="why-box green">
+        <span class="label">WHY</span>
+        <div class="q">Why correctness is set higher than availability</div>
+        <p style="margin-bottom:0;"><strong>Asymmetric cost.</strong> Overcharging is a legal/trust issue (refunds, lawsuits). Undercharging is silent revenue loss — no customer complains when they pay less. So the bar for "did we calculate right" must be stricter than "did we respond at all."</p>
+      </div>
+
+      <h3>Error Budget Policy</h3>
+      <table>
+        <thead><tr><th>Consumed</th><th>Operational change</th></tr></thead>
+        <tbody>
+          <tr><td><span class="pill green">&lt; 50%</span></td><td>Normal ops. Feature work and deployments proceed.</td></tr>
+          <tr><td><span class="pill amber">50%</span></td><td>Eng lead notified. New feature deploys need SRE sign-off. Top error sources reviewed.</td></tr>
+          <tr><td><span class="pill amber">75%</span></td><td><strong>Feature freeze</strong> (no new functionality). Reliability fixes only.</td></tr>
+          <tr><td><span class="pill red">100%</span></td><td>Full freeze. Incident retrospective required. SLO target reassessed with leadership.</td></tr>
+        </tbody>
+      </table>
+      <p><strong>Decision rights:</strong> Eng manager + SRE lead at 50/75%. VP Eng at 100%. <strong>Correctness breaches</strong> bypass the budget — they escalate immediately as incidents. <strong>External-event budget burn</strong> (AWS AZ outage, upstream dependency failure) is reviewed separately — we don't penalize the team for failures outside our control.</p>
+    </section>
+
+    <section id="deploy">
+      <h2><span class="n">03</span>Deployment &amp; Resilience</h2>
+      <p class="lede-section">Kubernetes topology (how pods are laid out), autoscaling triggers, <strong>PDB</strong> (Pod Disruption Budget — caps how many pods can be down at once during voluntary disruptions), and graceful degradation when dependencies fail.</p>
+
+      <h3>Kubernetes Topology</h3>
+      <div class="stats">
+        <div class="stat"><div class="label">Min pods</div><div class="value">6</div><div class="hint">2 per zone × 3 zones</div></div>
+        <div class="stat"><div class="label">Max pods</div><div class="value">100</div><div class="hint">~1.5× peak</div></div>
+        <div class="stat"><div class="label">CPU target</div><div class="value">60%</div><div class="hint">leaves room for pauses</div></div>
+        <div class="stat"><div class="label">Max can-be-down</div><div class="value">2</div><div class="hint">drain + 1 failure</div></div>
+      </div>
+
+<pre><code><span class="k">resources:</span>
+  <span class="k">requests:</span>  { cpu: <span class="nm">500m</span>,  memory: <span class="nm">512Mi</span> }
+  <span class="k">limits:</span>    { cpu: <span class="nm">1000m</span>, memory: <span class="nm">768Mi</span> }
+
+<span class="k">scaling:</span>
+  cpu_target: <span class="nm">60%</span>           <span class="c"># NOT 70% — see why below</span>
+  scaleUp:   stabilize=<span class="nm">60s</span>, +<span class="nm">100%</span>/min
+  scaleDown: stabilize=<span class="nm">300s</span>   <span class="c"># avoid yo-yo after sale</span>
+
+<span class="k">spread:</span> one pod per node · spread across zones
+<span class="k">readiness:</span> /readyz   <span class="c"># checks DB pool + Redis</span></code></pre>
+
+      <div class="why-box amber">
+        <span class="label">WHY</span>
+        <div class="q">HPA target at 60% CPU, not the textbook 70%</div>
+        <p style="margin-bottom:0;">Python's GC (garbage collection — periodic memory cleanup that pauses the process) creates uneven CPU. At 70% average utilization, individual pods spike into the 90s during GC, async event-loop queueing kicks in, and p99 breaches. 60% gives ~15% headroom before queueing. If load testing shows GC pressure is mild, 65% is defensible.</p>
+      </div>
+
+      <h3>Top 3 Failure Modes</h3>
+
+      <div class="fmode">
+        <h4>1 · Sequential scan on <code>discount_rules</code> after a new bank offer</h4>
+        <p>A new offer with <code>applicable_card_types = ARRAY['visa','mastercard','amex']</code> defeats the GIN index (Postgres index type for array/JSON columns) if it doesn't cover the new pattern. Plan flips to <strong>Seq Scan</strong> (full table read instead of index lookup). Query p99 jumps from ~5 ms to 200+. <code>db.rows_returned</code> spikes 10×. Connection pool saturates.</p>
+        <p style="margin-bottom:0;"><strong>Mitigation:</strong> CI runs <code>EXPLAIN ANALYZE</code> (Postgres command that shows the actual query plan) against a production-scale staging dataset for any rule-column migration. Read replica for rule queries. If it lands in prod: bump Redis TTL 5m → 30m while <code>CREATE INDEX CONCURRENTLY</code> (creates an index without locking writes) runs.</p>
+      </div>
+
+      <div class="fmode">
+        <h4>2 · Redis eviction during Black Friday cascades to Postgres</h4>
+        <p>Default <code>allkeys-lru</code> evicts <em>any</em> key under memory pressure. Cold cache at 20K RPS = 20K queries/sec to a DB sized for 200–400/sec. Pool saturates in seconds — the <strong>thundering herd</strong> (many requests piling onto a slow dependency at once).</p>
+        <p style="margin-bottom:0;"><strong>Mitigation:</strong> Pre-size Redis (rule set is &lt; 100 MB — eviction implies a leak). Use <code>volatile-lru</code> so only TTL'd keys are evicted; pin critical rule keys without TTL. <strong>Circuit breaker</strong> (auto-trips when a downstream is failing): if pool utilization &gt; 90% for 10s, serve stale rules instead of queueing more DB connections.</p>
+      </div>
+
+      <div class="fmode">
+        <h4>3 · Silent miscalculation for a brand+bank combination</h4>
+        <p>A rule-priority ordering bug applies brand and bank discounts <strong>multiplicatively instead of additively</strong> for Zara + HDFC. Final price 30% lower than intended. <em>This will not show in error rate or latency metrics.</em></p>
+        <p style="margin-bottom:0;"><strong>Mitigation:</strong> Correctness shadow job (SLI-2) every 5 min against known fixtures. Canary uses <code>discount_applied_amount_cents</code> distribution — auto-rollback on &gt; 15% shift. Daily finance reconciliation against expected vs. applied totals; &gt; 0.1% deviation pages.</p>
+      </div>
+
+      <h3>Graceful Degradation</h3>
+      <div class="card accent">
+        <p>The central tension on the checkout path: <strong>fail-open</strong> (degrade gracefully and serve a reduced response) vs. <strong>fail-closed</strong> (refuse the request entirely). <strong>Decision: fail open.</strong></p>
+        <ul style="margin-bottom:0;">
+          <li><strong>Redis unreachable</strong> → bypass cache, query Postgres directly. Doubles DB load but stays correct.</li>
+          <li><strong>Postgres unreachable + cold cache</strong> → return zero discounts (<code>final_price = original_price</code>, <code>message = "Discounts temporarily unavailable"</code>). Customers complete checkout at full price.</li>
+          <li><strong>Postgres slow (&gt; 100 ms)</strong> → serve stale cached rules up to 10 min old.</li>
+          <li><strong>Never acceptable:</strong> <code>final_price &gt; original_price</code> (legal/regulatory exposure) or substantially under-priced (revenue exposure). Returning the original price is the conservative-safe fallback.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="cicd">
+      <h2><span class="n">04</span>CI / CD &amp; Change Safety</h2>
+      <p class="lede-section">Pipeline gates from PR to production, with extra checks for discount-logic changes. Standard signals (error rate, p99 latency) miss silent pricing regressions — we layer correctness checks on top.</p>
+
+      <h3>The pipeline</h3>
+<pre><code><span class="c">PR opened</span>
+  ├─ formatters · type checks
+  ├─ unit tests on discount logic
+  ├─ security scan on dependencies + code
+  ├─ container scan · blocks high/critical issues
+  └─ review · 1 SRE + 1 domain engineer for logic changes
+
+<span class="c">Merge → main</span>
+  ├─ integration tests · real Postgres + Redis
+  ├─ schema check · don't break checkout's contract
+  └─ build, push, deploy to staging
+
+<span class="c">Staging</span>
+  ├─ smoke tests
+  ├─ load test · 5 min at 2× normal · p99 must stay &lt; 120 ms
+  ├─ <strong>50 known carts with exact expected prices</strong>
+  └─ manual sign-off for logic changes
+
+<span class="c">Production</span>
+  ├─ canary 5% · 10 min
+  │     auto-rollback if: errors &gt; 0.5% · p99 &gt; 140 ms · discount drift &gt; 15%
+  └─ progressive 25 → 50 → 100% in 10-min steps</code></pre>
+
+      <h3>Discount-Logic Rollout Gates</h3>
+      <p>Three additional gates on top of the standard pipeline:</p>
+      <ol>
+        <li><strong>Fixture suite</strong> — 50 known cart/rule combinations with exact pre-computed expected prices, run in staging. Primary correctness gate.</li>
+        <li><strong>Canary metric — distribution comparison.</strong> p25/p50/p75 of <code>discount_applied_amount_cents</code> compared between canary pods and stable. Shift &gt; 15% triggers <strong>auto-rollback</strong>.</li>
+        <li><strong>Shadow mode</strong> — for major logic changes, run new logic in parallel for 24 hours, return the <em>old</em> answer to users, alert on output divergence. Zero customer impact, full visibility into what would have changed.</li>
+      </ol>
+
+      <h3>Rollback Strategy</h3>
+      <div class="stats">
+        <div class="stat"><div class="label">Code rollback</div><div class="value">&lt;5m</div><div class="hint">kubectl rollout undo</div></div>
+        <div class="stat"><div class="label">Schema rollback</div><div class="value">15-30m</div><div class="hint">compensating migration</div></div>
+      </div>
+      <p><strong>Migration policy:</strong> all schema changes <strong>backward-compatible with N-1 code</strong> (works with both the previous and current app version). Additive only — no breaking renames or constraint changes. Renames split into <em>add column → backfill → drop</em>, across separate deploys. This keeps the rollback path always trivial.</p>
+
+      <h3>Secrets &amp; Supply Chain</h3>
+      <ul>
+        <li>DB credentials and Redis auth via <strong>AWS Secrets Manager</strong>, injected at pod start via the Secrets Store CSI driver — never in images or env files</li>
+        <li><code>git-secrets</code> pre-commit hook + CI scan block accidental check-ins</li>
+        <li><strong>Image signing</strong> via AWS Signer; <strong>OPA admission policy</strong> (Open Policy Agent — cluster-level rule engine) refuses unsigned images</li>
+      </ul>
+    </section>
+
+    <section id="capacity">
+      <h2><span class="n">05</span>Capacity &amp; Cost</h2>
+      <p class="lede-section">Latency budget per hop, throughput math, the first bottleneck under load, and one cost-optimization proposal.</p>
+
+      <h3>Latency Budget (p99 &lt; 150 ms)</h3>
+      <p>The end-to-end SLO is meaningless without allocating it across hops. These are p99 targets per component — if any single hop blows its share, the whole budget is gone.</p>
+
+      <table>
+        <thead><tr><th>Step</th><th>Budget</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>Network in/out</td><td>20 ms</td><td>Round-trip from checkout</td></tr>
+          <tr><td>Redis lookup</td><td>10 ms</td><td>Hard timeout 25 ms — fall back to DB</td></tr>
+          <tr><td>Postgres lookup (only on miss)</td><td>50 ms</td><td>Hard timeout 100 ms — fall back to stale cache</td></tr>
+          <tr><td>App logic</td><td>20 ms</td><td>Includes JSON serialization</td></tr>
+          <tr><td>Headroom</td><td>50 ms</td><td>Python pauses, queue jitter</td></tr>
+          <tr><td><strong>Total</strong></td><td><strong>150 ms</strong></td><td>Matches target</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Throughput Math</h3>
+      <p>Per-pod throughput estimate: ~300 RPS for Python async (FastAPI/uvicorn) at 20 ms avg latency, accounting for GC, pool contention, and TLS overhead. <strong>This is the assumption the entire capacity model rests on — validate by load test on day one.</strong></p>
+
+      <table>
+        <thead><tr><th>When</th><th>Math</th><th>Pods</th></tr></thead>
+        <tbody>
+          <tr><td>Steady-state</td><td>2,000 ÷ 300</td><td><strong>~7</strong> · run 10, floor at 6</td></tr>
+          <tr><td>Peak</td><td>20,000 ÷ 300</td><td><strong>~67</strong> · max 100 for safety</td></tr>
+          <tr><td>Database (15% miss)</td><td>20K × 0.15</td><td><strong>3,000 q/s</strong> · r6g.2xlarge + read replica</td></tr>
+          <tr><td>Connections at peak</td><td>67 × 15</td><td><strong>~1,000</strong> · under Aurora's 1,700 limit, but tight</td></tr>
+          <tr><td>Redis size</td><td>20MB rules + 100MB vouchers</td><td><strong>~200 MB</strong> · use r6g.large for safety</td></tr>
+        </tbody>
+      </table>
+
+      <div class="why-box red">
+        <span class="label">BOTTLENECK</span>
+        <div class="q">Postgres connection ceiling, not CPU or IOPS</div>
+        <p style="margin-bottom:0;">If the 300 RPS/pod assumption proves optimistic and pod count climbs toward 100, we approach Aurora's <code>max_connections</code> ~1,700 limit before saturating CPU or disk. <strong>Mitigation: PgBouncer in transaction-pooling mode</strong> — holds ~200 server-side connections, multiplexes thousands of client-side connections through them. Mandatory before peak-sale readiness.</p>
+      </div>
+
+      <h3>Backpressure &amp; Admission Control</h3>
+      <div class="card warn">
+        <p style="margin-top: 0;">At 20K RPS, queueing causes <strong>tail latency collapse</strong>: requests pile up faster than they drain, average latency climbs into multi-second territory before timing out, and the system becomes uniformly broken instead of partially serving. Three controls prevent it:</p>
+        <ul style="margin-bottom: 0;">
+          <li><strong>Deadline propagation:</strong> checkout passes a deadline header (how long it can wait). We reject early with <code>503 deadline_exceeded</code> rather than start work we can't finish in time.</li>
+          <li><strong>Bounded request queue per worker</strong> (max 50 in-flight). Above the cap, fail fast with <code>503 overloaded</code>. Controlled rejection &gt; cascading timeout.</li>
+          <li><strong>DB pool wait cap:</strong> if a request waits &gt; 30 ms for a connection, abort and return zero-discount fallback rather than block the worker.</li>
+        </ul>
+      </div>
+
+      <h3>Idempotency &amp; Retry Safety</h3>
+      <p>Checkout retries on transient failures. The calculation is naturally <strong>idempotent</strong> (same inputs → same output), but invariants must hold:</p>
+      <ul>
+        <li><strong>Pure functions:</strong> rule evaluation never depends on wall-clock time except explicit voucher expiry checks (deterministic given the input timestamp)</li>
+        <li><strong>Idempotency key on <code>validate_discount_code</code></strong> — the request-ID short-circuits duplicate redemption-counter increments on retry</li>
+        <li>No side effects in the calculate path. Cache populates are safe to repeat</li>
+      </ul>
+
+      <h3>Cost Optimization — Spot Worker Tier</h3>
+      <div class="card accent">
+        <p><strong>Spot instances</strong> (spare AWS capacity at 60–70% discount, reclaimable with 2-min warning) for non-baseline pods. Run 6 on-demand pods (the reliability minimum); elastic capacity above that floor on Spot. Estimated $200–300/month savings, scaling with peak fleet.</p>
+        <p style="margin-bottom: 0;"><strong>Black Friday exception: 100% on-demand.</strong> Spot reclamation rates spike during high-demand windows — exactly when we can least afford a forced reclamation cascade. Pre-purchase Savings Plans for the baseline.</p>
+      </div>
+    </section>
+
+    <section id="runbook">
+      <h2><span class="n">06</span>Runbook · DB Pool Saturated</h2>
+      <p class="lede-section">A real on-call procedure. Optimised for 3 AM cognitive load: ranked likely causes, explicit verification before closing, escalation timeline.</p>
+
+      <div class="card warn">
+        <h4 style="margin-top:0;">Symptoms</h4>
+        <ul style="margin-bottom: 0;">
+          <li>PagerDuty: <code>DiscountService_DBPoolSaturation</code></li>
+          <li>Pool utilization gauge red</li>
+          <li>p99 latency climbing from ~20 ms toward 150 ms</li>
+          <li>Logs show <code>WARNING pool_wait_ms=…</code> or <code>ERROR pool_timeout</code></li>
+        </ul>
+      </div>
+
+      <div class="runbook">
+        <div class="step">
+          <h4>Is it the pool, or the database?</h4>
+<pre><code>discount_db_pool_utilization                            <span class="c"># &gt; 90% confirms pool</span>
+discount_db_query_duration_seconds{quantile="0.99"}     <span class="c"># is the DB itself slow?</span></code></pre>
+          <p>Pool high + queries fast → connection-count problem. <strong>Stay here.</strong><br/>
+          Pool high + queries slow → DB is the cause. Different runbook.</p>
+        </div>
+
+        <div class="step">
+          <h4>What changed (most likely first)</h4>
+          <ol>
+            <li>Traffic spike — check requests/sec</li>
+            <li>Recent deploy bumped pool size — check <code>kubectl describe deploy</code></li>
+            <li>HPA hasn't caught up — check <code>kubectl get hpa</code></li>
+            <li>Cache hit rate dropped — doubles DB load</li>
+            <li>A slow query showed up — holds connections longer</li>
+          </ol>
+        </div>
+
+        <div class="step">
+          <h4>Fix it</h4>
+<pre><code><span class="c"># First: check we won't blow the DB connection limit</span>
+psql -h $DB_HOST -c <span class="s">"SELECT count(*) FROM pg_stat_activity;"</span>
+
+<span class="c"># Force scale-up</span>
+kubectl scale deployment discount-service --replicas=<span class="nm">50</span>
+
+<span class="c"># Bad deploy → roll back</span>
+kubectl rollout undo deployment/discount-service
+
+<span class="c"># Last resort: shrink per-pod pool</span>
+kubectl set env deployment/discount-service DB_POOL_SIZE=<span class="nm">5</span></code></pre>
+        </div>
+
+        <div class="step">
+          <h4>Confirm recovery</h4>
+          <p>All three must be trending right before closing:</p>
+          <ul>
+            <li>Pool utilization &lt; 70%</li>
+            <li>p99 latency &lt; 50 ms</li>
+            <li>Error rate at zero</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>Escalation</h3>
+      <table>
+        <thead><tr><th>Time</th><th>What to do</th></tr></thead>
+        <tbody>
+          <tr><td><span class="pill blue">0 min</span></td><td>On-call works the runbook</td></tr>
+          <tr><td><span class="pill amber">10 min</span></td><td>No improvement → page on-call lead + DB team</td></tr>
+          <tr><td><span class="pill amber">20 min</span></td><td>SLO breach → page eng manager. Consider zero-discount fallback.</td></tr>
+          <tr><td><span class="pill red">30 min</span></td><td>SEV-1 declared. Notify checkout team.</td></tr>
+        </tbody>
+      </table>
+
+      <div class="card danger">
+        <h4 style="margin-top:0;">Last-resort fallback: charge full price</h4>
+<pre style="margin: 8px 0 0; background: rgba(0,0,0,0.3);"><code>kubectl set env deployment/discount-service DISCOUNT_FALLBACK_MODE=<span class="s">zero</span></code></pre>
+        <p style="margin-top: 12px; margin-bottom: 0;">Returns original price for everything. Customers won't get discounts but they can still check out.</p>
+      </div>
+
+      <h3>After it's over</h3>
+      <ul>
+        <li>Root cause document within 24 hours</li>
+        <li>If it was connection growth: get PgBouncer in</li>
+        <li>If it was cache eviction: review Redis sizing</li>
+        <li>Link runbook to the alert</li>
+        <li>If &gt; 20% of error budget burned: trigger budget review</li>
+      </ul>
+    </section>
+
+    <section id="tradeoffs">
+      <h2><span class="n">07</span>Assumptions &amp; Trade-offs</h2>
+
+      <h3>Assumptions</h3>
+      <ul>
+        <li><strong>Python async</strong> (asyncio + FastAPI/uvicorn), not synchronous WSGI. Capacity math changes substantially under sync workers.</li>
+        <li><strong>Aurora PostgreSQL</strong>, not vanilla RDS. Failover is faster (15–30s vs. 60–120s) and read replicas are trivial to add.</li>
+        <li><strong>Datadog</strong>. Unified UI for traces/metrics/logs at 3 AM matters more than vendor cost. Prometheus + Grafana + Jaeger is a valid alternative.</li>
+        <li>Voucher TTL = 30s because codes can be revoked. 5-min TTL is acceptable if revocation isn't a requirement.</li>
+        <li><strong>Per-pod throughput ≈ 300 RPS</strong> at 20 ms avg. Validate by load test before treating as fact — the entire capacity model rests on this number.</li>
+      </ul>
+
+      <h3>Explicit Trade-offs</h3>
+
+      <div class="why-box amber">
+        <span class="label">TRADE-OFF</span>
+        <div class="q">99.9% availability SLO, not 99.95%</div>
+        <p style="margin-bottom:0;"><strong>Honest for single-region multi-AZ.</strong> 99.95% would require multi-region <strong>active-active</strong> (both regions serving traffic concurrently with conflict resolution) — significant operational complexity. Aurora failover alone consumes 15–30s of the budget. Promising 99.95% on this architecture would be dishonest.</p>
+      </div>
+
+      <div class="why-box green">
+        <span class="label">TRADE-OFF</span>
+        <div class="q">Fail-open with zero-discount fallback, not fail-closed</div>
+        <p style="margin-bottom:0;">When dependencies break, customers complete checkout at full price rather than being blocked. The cost of "no discount" is bounded; the cost of "no checkout" is unbounded (lost transaction + churn). <strong>This must be a product decision, not an engineering one.</strong></p>
+      </div>
+
+      <div class="why-box">
+        <span class="label">TRADE-OFF</span>
+        <div class="q">HPA target 60% CPU, not 70%</div>
+        <p style="margin-bottom:0;">More conservative than tutorials. The 10% extra headroom absorbs Python GC pauses (which spike individual pods to 95%+). Validated by load test — raise to 65% if GC pressure proves mild.</p>
+      </div>
+
+      <div class="why-box amber">
+        <span class="label">TRADE-OFF</span>
+        <div class="q">PgBouncer omitted from v1 architecture diagram</div>
+        <p style="margin-bottom:0;">Adds operational complexity. Diagram simplified for the v1 launch story. Ships in v1.5 — mandatory before first peak-sale event.</p>
+      </div>
+
+      <h3>What we'd do with another week</h3>
+      <ol>
+        <li>Load test the async service to validate the 300 RPS/pod number</li>
+        <li>Detail the correctness shadow job</li>
+        <li>Write a second runbook (voucher rejection — different failure pattern)</li>
+        <li>Spec the PgBouncer deployment</li>
+        <li>Pre-scaling playbook for known sale events</li>
+      </ol>
+    </section>
+
+    <footer>
+      Discount Service · SRE Design · v1 · 2026-05-06
+    </footer>
+  </main>
+</div>
+</body>
+</html>
