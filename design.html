@@ -190,6 +190,12 @@
   .node:hover .tip { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
   .tip.below { bottom: auto; top: calc(100% + 12px); }
   .tip.below::after { top: auto; bottom: 100%; border-top-color: transparent; border-bottom-color: var(--tip-bg); }
+  .tip.anchor-left { left: 0; transform: translateX(0) translateY(4px); }
+  .node:hover .tip.anchor-left { transform: translateX(0) translateY(0); }
+  .tip.anchor-left::after { left: 90px; }
+  .tip.anchor-right { left: auto; right: 0; transform: translateX(0) translateY(4px); }
+  .node:hover .tip.anchor-right { transform: translateX(0) translateY(0); }
+  .tip.anchor-right::after { left: auto; right: 90px; transform: translateX(50%); }
   .edge-label { position: absolute; z-index: 3; background: var(--bg-card); border: 1px solid var(--border); color: var(--text-muted); font-size: 10.5px; font-family: 'JetBrains Mono', monospace; padding: 2px 8px; border-radius: 4px; pointer-events: none; white-space: nowrap; }
   .edge-label.warm { color: var(--green); border-color: rgba(5,150,105,0.4); }
   .edge-label.cold { color: var(--red); border-color: rgba(220,38,38,0.4); }
@@ -406,7 +412,7 @@
         <div class="node platform" style="top: 220px; right: 30px; width: 180px;">
           <div class="title"><span class="ndot"></span>Datadog</div>
           <div class="sub">logs, metrics, alerts</div>
-          <div class="tip">
+          <div class="tip anchor-right">
             <span class="why">WHY</span>
             <span class="role">Observability</span>
             Unified UI for logs, metrics, and distributed traces. At 3 AM, jumping between three tools to correlate is friction we don't need.
@@ -422,7 +428,7 @@
         <div class="node platform" style="top: 220px; left: 30px; width: 180px;">
           <div class="title"><span class="ndot"></span>Secrets Manager</div>
           <div class="sub">stores passwords safely</div>
-          <div class="tip">
+          <div class="tip anchor-left">
             <span class="why">WHY</span>
             <span class="role">Secrets &amp; Supply Chain</span>
             DB credentials and Redis auth tokens injected at pod startup via the <strong>Secrets Store CSI driver</strong> (Kubernetes plugin that mounts secrets from cloud secret managers as files). Never baked into images.
@@ -437,7 +443,7 @@
         <div class="node platform" style="top: 80px; right: 60px; width: 160px;">
           <div class="title"><span class="ndot"></span>Auto-scaler</div>
           <div class="sub">adds pods when busy</div>
-          <div class="tip below">
+          <div class="tip below anchor-right">
             <span class="why">WHY</span>
             <span class="role">Elasticity</span>
             <strong>HPA</strong> (Horizontal Pod Autoscaler — adds/removes pod replicas based on CPU) + <strong>Cluster Autoscaler</strong> (adds/removes whole VMs). <strong>Asymmetric stabilization</strong> (different speeds for up vs. down) on purpose.
