@@ -39,7 +39,7 @@ The six required deliverables from the assignment:
 | 3 | **Deployment & Resilience Design** — K8s topology, failure modes, graceful degradation | [design.md §3](design/design.md#3-deployment--resilience) |
 | 4 | **CI/CD and Change Safety** | [design.md §4](design/design.md#4-cicd--change-safety) |
 | 5 | **Capacity & Cost** — latency budget, throughput math, bottleneck, cost optimization | [design.md §5](design/design.md#5-capacity--cost) |
-| 6 | **Runbook** — DB connection pool saturation | [design.md §6](design/design.md#6-runbook--db-pool-saturated) |
+| 6 | **Runbooks** — DB connection pool saturation + voucher code rejection | [§6](design/design.md#6-runbook--db-pool-saturated) · [§6b](design/design.md#6b-runbook--voucher-codes-being-rejected) |
 
 ---
 
@@ -68,7 +68,7 @@ These are the assumptions the design rests on:
 - **Aurora PostgreSQL**, not vanilla RDS. Aurora's 15–30s failover (the automatic switch to a healthy replica when the primary dies) vs. RDS's 60–120s is material on the checkout path.
 - **Datadog** as the observability platform — unified traces/metrics/logs in one UI matters at 3 AM more than the vendor cost. Prometheus + Grafana + Jaeger is a valid alternative.
 - **Voucher TTL = 30 seconds** because voucher codes can be revoked (fraud, expiry, single-use redemption). 5-min TTL is acceptable if revocation isn't a feature.
-- **Per-pod throughput ≈ 300 RPS** at 20 ms avg latency. **The single most important number to validate by load test on day one** — the entire capacity model rests on it.
+- **Per-pod throughput ≈ 300 RPS** at 20 ms avg latency. **The single most important number to validate by load test on day one** — the entire capacity model rests on it. A concrete day-one k6 protocol with pass criteria and a decision matrix for what to do when results miss is in [design.md §5](design/design.md#validation-plan-day-one-load-test).
 - **Single region, multi-AZ**, per the assignment. Multi-region active-active is out of v1 scope.
 
 ---
@@ -80,7 +80,7 @@ Senior decisions are about which discomfort to accept:
 ### Reliability vs. complexity
 
 - **99.9%, not 99.95%.** Honest for single-region multi-AZ. 99.95% requires multi-region active-active (both regions serving concurrently with conflict resolution), which adds significant operational cost.
-- **PgBouncer omitted from v1 diagram.** PgBouncer is a connection pooler that multiplexes many client-side database connections through a smaller pool of server-side connections. Adds operational complexity but is mandatory before the first peak-sale event. Ships in v1.5 hardening — not at launch.
+- **PgBouncer drawn in the v1 diagram with a `v1.5` label.** PgBouncer is a connection pooler that multiplexes many client-side DB connections through a smaller pool of server-side connections. Drawn with a double-line border so reviewers see the deployment phasing visually rather than reading a footnote. Adds operational complexity, but **mandatory before the first peak-sale event** — see Capacity section for connection-ceiling math.
 
 ### Customer experience vs. revenue
 
@@ -130,11 +130,15 @@ discount-service (Python async, K8s, 6–100 pods)
       ├──► Redis (rules, 5 min TTL)     ──┐
       ├──► Redis (vouchers, 30s TTL)    ──┤  cache miss
       │                                   ▼
-      └──► (via PgBouncer in v1.5) ──────► Aurora PostgreSQL
-                                          (main + read replica)
+      │                          ╔══════════════╗
+      └──────────────────────────►  PgBouncer   ║   ← v1.5
+                                 ╚══════╤═══════╝
+                                        ▼
+                                 Aurora PostgreSQL
+                                 (main + read replica)
 ```
 
-PgBouncer is shown here as part of the v1.5 topology. The simplified v1 diagram in [design.md](design/design.md#architecture) omits it for readability. The interactive diagram in [design.html](design.html) has hover tooltips on every component.
+PgBouncer is drawn with a double-line box and a `v1.5` label — it ships in the next iteration, mandatory before the first peak-sale event. The interactive diagram in [design.html](design.html) has hover tooltips on every component with role + design rationale.
 
 ---
 
@@ -143,10 +147,11 @@ PgBouncer is shown here as part of the v1.5 topology. The simplified v1 diagram 
 Per the assignment, the design was drafted with AI assistance and then critically refined. The git history reflects:
 
 1. **Initial AI-assisted draft** of the six-area design.
-2. **Critical review pass** — fixed inconsistencies (capacity math reconciled at 300 RPS/pod and max 100 replicas, latency budget added per hop, PgBouncer ambiguity resolved, idempotency / cardinality discipline / queueing & backpressure addressed).
+2. **Critical review pass** — capacity math reconciled at 300 RPS/pod and max 100 replicas, latency budget added per hop, PgBouncer ambiguity resolved, idempotency / cardinality discipline / queueing & backpressure addressed.
 3. **README and rendered version** added for reviewer context.
+4. **Coverage extensions** — second runbook (voucher rejection), PgBouncer drawn into v1 diagram with `v1.5` annotation, concrete day-one load-test plan with pass criteria and decision matrix.
 
-The delta between the AI draft and the final design is intentionally visible in commit messages.
+The delta between the AI draft and the final design is intentionally visible across the commits — each one names what was changed and why.
 
 ---
 
