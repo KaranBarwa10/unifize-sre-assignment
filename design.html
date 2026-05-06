@@ -158,8 +158,8 @@
   .step::before { content: counter(step); position: absolute; left: 0; top: 0; width: 36px; height: 36px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-family: 'JetBrains Mono', monospace; box-shadow: 0 4px 12px rgba(99,102,241,0.3); }
 
   /* Diagram */
-  .canvas-wrap { margin: 24px 0 16px; overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 16px; }
-  .canvas { position: relative; padding: 50px 30px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow); width: 1180px; height: 880px; }
+  .canvas-wrap { margin: 24px 0 16px; width: 100%; position: relative; overflow: hidden; border-radius: 16px; }
+  .canvas { position: relative; padding: 50px 30px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow); width: 1180px; height: 880px; transform-origin: top left; }
   .lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
   .lines path { fill: none; stroke: var(--line); stroke-width: 2; stroke-dasharray: 4 4; }
   .lines path.solid { stroke-dasharray: none; }
@@ -212,6 +212,17 @@
     var theme = saved || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
     document.documentElement.setAttribute('data-theme', theme);
   })();
+  function fitDiagram() {
+    var wrap = document.querySelector('.canvas-wrap');
+    var canvas = document.querySelector('.canvas');
+    if (!wrap || !canvas) return;
+    var scale = Math.min(1, wrap.clientWidth / 1180);
+    canvas.style.transform = 'scale(' + scale + ')';
+    wrap.style.height = (880 * scale) + 'px';
+  }
+  window.addEventListener('resize', fitDiagram);
+  window.addEventListener('load', fitDiagram);
+  document.addEventListener('DOMContentLoaded', fitDiagram);
 </script>
 </head>
 <body>
@@ -252,7 +263,7 @@
     <section id="overview">
       <h2><span class="n">00</span>Architecture &amp; Component Map</h2>
       <p class="lede-section">A <strong>synchronous, stateless service</strong> (each request is independent — no session memory) on the <strong>checkout critical path</strong> (every cart-pricing request goes through us). Target: p99 &lt; 150 ms. If we're slow or down, customers can't buy — that's the rule the rest of the design follows.</p>
-      <div class="hover-hint">Hover any box to see what it does and why · scroll sideways on small screens</div>
+      <div class="hover-hint">Hover any box to see what it does and why</div>
 
       <div class="canvas-wrap">
       <div class="canvas">
