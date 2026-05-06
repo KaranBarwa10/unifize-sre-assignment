@@ -437,6 +437,84 @@ Returns `original_price` for all requests. Customers unhappy (no discounts) but 
 
 ---
 
+---
+
+## 6b. Runbook · Voucher Codes Being Rejected
+
+**Trigger:** Spike in `discount_zero_applied_total` from voucher endpoint, or customer-service ticket surge ("my code says invalid"), or `/validate_code` 4xx rate elevated.
+
+### Symptoms
+
+- PagerDuty: `DiscountService_VoucherRejection_HighRate`
+- `discount_zero_applied_total{endpoint="validate_code"}` rate >> baseline
+- Support inbox flooded with "valid code being rejected" tickets
+- `/validate_code` returning `false` at 5–10× normal rate
+
+### Step 1 — Confirm scope
+
+```promql
+rate(discount_validate_code_total{outcome="invalid"}[5m])   # rejection rate
+rate(discount_validate_code_total[5m])                       # total rate
+```
+
+Is rejection rate elevated *as a fraction*, or just because traffic is up? If fraction is normal, this isn't an incident — it's volume.
+
+### Step 2 — What changed (ranked by probability)
+
+1. **Recent voucher-rule deploy** — check deploy timeline. Did a new rule misconfigure expiry, brand scope, or stacking?
+2. **Voucher cache poisoning** — Redis cached an "invalid" answer (e.g. due to a transient DB error during validation). 30s TTL means it self-heals fast, but during the window many requests see stale invalid.
+3. **Read-replica lag** — admin just bulk-loaded new voucher codes into the primary; the replica doesn't have them yet, validation against the replica says "not found."
+4. **Database row-level issue** — a recent migration left voucher table in inconsistent state.
+5. **Timezone / clock bug** — expiry check using server-local time instead of UTC. Surfaces around midnight UTC.
+
+### Step 3 — Mitigate
+
+**If recent voucher-rule deploy:**
+```bash
+kubectl rollout undo deployment/discount-service -n discount-service
+```
+
+**If cache poisoning suspected (rejection rate is patchy, recovers in seconds then re-spikes):**
+```bash
+# Flush voucher keyspace only — leave rules cache alone
+redis-cli -h $REDIS_HOST --scan --pattern 'voucher:*' | \
+  xargs redis-cli -h $REDIS_HOST DEL
+```
+
+**If read-replica lag (admin bulk-load was recent):**
+```bash
+# Force voucher reads from primary until replica catches up
+kubectl set env deployment/discount-service VOUCHER_DB_TARGET=primary -n discount-service
+# Revert once Aurora replica lag returns to < 1s
+```
+
+**Customer-side workaround while debugging:**
+- Customer service has a list of pre-approved manual override codes that bypass the validate path. They can reissue these to affected customers.
+
+### Step 4 — Verify
+
+- `discount_validate_code_total{outcome="invalid"}` rate back to baseline (typically < 5% of total)
+- Spot-check 5 known-good codes via curl
+- Customer-service ticket inflow normalising
+
+### Escalation
+
+| Time | Action |
+|---|---|
+| 0 min | On-call works the runbook |
+| 15 min | No improvement → page on-call lead + voucher-platform owner |
+| 30 min | Sustained customer impact → page eng manager + Customer Service lead |
+
+### Post-incident
+
+- [ ] Root-cause document within 24 hours
+- [ ] If voucher-rule deploy: tighten the fixture suite to cover the failed case
+- [ ] If cache poisoning: review `validate_code` retry logic — should we cache negative answers at all?
+- [ ] If replica lag: document the "VOUCHER_DB_TARGET=primary" toggle in the runbook
+- [ ] Reach out to affected customers with apology + recovered discount
+
+---
+
 ## Assumptions
 
 - **Python async** (asyncio + FastAPI/uvicorn), not synchronous WSGI. Capacity math changes substantially under sync workers.
